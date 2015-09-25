@@ -1,0 +1,46 @@
+# Week 1 Quiz
+## Question 1 
+Which of the following are steps in building a machine learning algorithm?   
+
+* Estimating parameters
+
+## Question 2
+Suppose we build a prediction algorithm on a data set and it is 100% accurate
+on that data set. Why might the algorithm not work well if we collect a new 
+data set?    
+
+* Our algorithm may be overfitting the training data, predicting both the signal
+and the noise.
+
+## Question 3
+What are typical sizes for the training and test sets?  
+
+* 60% in the training set, 40% in the testing set.
+
+## Question 4
+What are some common error rates for predicting binary variables (i.e. variables
+with two possible values like yes/no, disease/normal, clicked/didn't click)?   
+
+* Sensitivity----True Positive/(True Positive + False Negative)
+
+## Question 5
+The rate the link is clicked is 1/1000 of visits to a website.  
+TP : 99 --- predicted will be clicked actually is clicked    
+FN : 1 --- predicted will not be clicked actually is clicked     
+
+* Sensitivity = TP/(TP+FN) = 99% = 99/(99+1)
+
+* Total visits = link is clicked / (1/1000)
+link is clicked: TP+ FN = 100  
+Total visits = TP + FN + FP +TN = 100000  
+
+* Specificity = TN/(FP+TN) = 99%
+TN = 99* FP  
+FP : 999---predicted will be clicked actually is not clicked  
+TN : 98901--- predicted will not be clicked actually is not clicked
+
+* Positive Predictive Value >  
+   P(actually clicked|will be clicked) = TP/(TP+FP) = 99/(99+999) = 9%
+```{r}
+99/(99+999)
+```
