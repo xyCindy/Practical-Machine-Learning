@@ -26,8 +26,12 @@ modFit$finalModel
 # 3) TotalIntenCh2>=45323.5 555 216 WS (0.38918919 0.61081081)  
 # 6) FiberWidthCh1< 9.673245 154  47 PS (0.69480519 0.30519481) *
 # 7) FiberWidthCh1>=9.673245 401 109 WS (0.27182045 0.72817955) *
-plot(modFit$finalModel,uniform=TRUE, main="Question 1 Classification Tree")
-text(modFit$finalModel,use.n=TRUE, all=TRUE, cex=.8)
+
+# In order to use fancyRpartPlot function, we need to install rattle package 
+# and rpart.plot package first
+library(rattle)
+library(rpart.plot)
+fancyRpartPlot(modFit$finalModel)
 
 # a. TotalIntench2 = 23,000; FiberWidthCh1 = 10; PerimStatusCh1=2
 # b. TotalIntench2 = 50,000; FiberWidthCh1 = 10;VarIntenCh4 = 100 
