@@ -1,0 +1,231 @@
+# Practical Machine Learning Course Project
+
+# Introduction
+The objective of this project is to identify the execution type of an exercise,
+using data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The dataset includes readings from motion sensors on participants bodies. These
+reading will be used to classify the performed exercise into five categories:
+1. exactly according to the specification (Class A)
+2. throwing the elbows to the front (Class B)
+3. lifting the dumbbell only halfway (Class C)
+4. lowering the dumbbell only halfway (Class D)
+5. throwing the hips to the front (Class E)
+
+Please see the website ' http://groupware.les.inf.puc-rio.br/har' for more information. 
+
+# Getting the Data
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+setwd("~/Documents/Practical-Machine-Learning/Course Porject")
+
+library(ggplot2)
+library(lattice)
+library(caret)
+library(rpart)
+library(rattle)
+library(rpart.plot)
+library(randomForest)
+
+# The training data set is available on the following URL:
+trainUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+# The testing data set is available on the following URL:
+testUrl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+
+```{r eval=FALSE}
+# Download and Read Data
+download.file(trainUrl, destfile="./training.csv", method="curl")
+download.file(testUrl, destfile="./testing.csv", method="curl")
+```
+
+# Read csv in Excel frist, and we can find some missiong values
+```{r}
+training <- read.csv("training.csv", na.strings =c("NA","#DIV/0!",""))
+testing <- read.csv("testing.csv", na.strings =c("NA","#DIV/0!",""))
+dim(training) # 19622   160
+dim(testing) #20 160
+```
+
+# Cleaning Data(for training dataset)
+```{r}
+str(training)
+```
+As we can observe from the structure of training dataset, there are a lot of NAs
+and unique values in several variables.
+
+## Step 1: Remove all the zero and near-zero predictors
+We use nearZeroVar function to identify zero and near-zero predictors, and then 
+apply a quick and dirty solution: throw these data away.
+
+Note: We are assuming that all those predictors are non-informative, which is not necessarily true.
+
+```{r}
+# saveMetrics =TRUE will return data frame instead of index
+nzVal <- nearZeroVar(training, saveMetrics = TRUE)
+nzValPredictor <- row.names(nzVal[nzVal$nzv == TRUE | nzVal$zeroVar == TRUE, ])
+nzValIdx <- which(colnames(training) %in% nzValPredictor)
+training1 <- training[ ,-nzValIdx]
+dim(training1) # 19622   124
+```
+
+## Step 2: Remove columns which has equal or more than 60% NAs
+```{r}
+threshold <- 0.6
+naPredictorIdx <-c()
+for (i in 1:ncol(training1)) {
+        if (sum(is.na(training1[ , i])) / nrow(training1) >= threshold){
+        naPredictorIdx <-c(naPredictorIdx, i)
+        }
+}
+str(naPredictorIdx)  # 130
+trainingCleaned <- training1[ ,-naPredictorIdx]
+dim(trainingCleaned) # 19622 59   
+```
+
+## Step 3: Remove first to fifth column
+```{r}
+trainingCleaned <- trainingCleaned[ ,-(1:5)]
+dim(trainingCleaned) # 19622 54
+```
+
+# Cleaning Data(for testing dataset) by the same process
+## Step 1: Remove all the zero and near-zero predictors
+```{r}
+nzVal <- nearZeroVar(testing, saveMetrics = TRUE)
+nzValPredictor <- row.names(nzVal[nzVal$nzv == TRUE | nzVal$zeroVar == TRUE, ])
+nzValIdx <- which(colnames(training) %in% nzValPredictor)
+testing1 <- testing[ ,-nzValIdx]
+dim(testing1) # 20   59
+```
+
+## Step 2: Remove columns which has equal or more than 60% NAs
+```{r}
+threshold <- 0.6
+naPredictorIdx <-c()
+for (i in 1:ncol(testing1)) {
+        if (sum(is.na(testing1[ , i])) / nrow(testing1) >= threshold){
+        naPredictorIdx <-c(naPredictorIdx, i)
+        }
+}
+str(naPredictorIdx)  # Null
+testingCleaned <- testing1
+dim(testingCleaned) # 20 59   
+```
+
+## Step 3: Remove first to fifth columns 
+Because these data don't make intuitive sense for prediction (`X, user_name, raw_timestamp_part_1, raw_timestamp_part_2, cvtd_timestamp`), which happen to be 
+the first five variables
+
+```{r}
+testingCleaned <- testingCleaned[ ,-(1:5)]
+dim(testingCleaned) # 20 54
+```
+
+# Data Splitting Method to estimate model accuracy
+Data splitting involves partitioning the data into an explicit training dataset 
+used to prepare the model and an unseen test dataset used to evaluate the models performance on unseen data.
+
+It is useful when we have a very large dataset so that the test dataset can 
+provide a meaningful estimation of performance, or for when we are using slow 
+methods and need a quick approximation of performance.
+
+The R code below splits the trainingCleaned dataset so that 60% is used for 
+training a Decision Tree model/Random Forest Model, and 40% is used to evaluate 
+the models performance.
+
+## 1.Partition the training data into two data sets, 60% is train, 40% is test.
+```{r}
+# define an 60%/40% train/test split of the trainingCleaned dataset
+set.seed(123)
+inTrain <- createDataPartition(y = trainingCleaned$classe, p=0.6, list=FALSE)
+train <- trainingCleaned[inTrain, ]
+test <- trainingCleaned[-inTrain, ]
+dim(train) # 11776    54
+dim(test) # 7846   54
+```
+
+## 2.Build Decision Tree Model to predict "classe"
+Note: column "X" only contains id number, so exclude column "X" when build ML model
+```{r}
+# train a decision tree model
+dtModel <- train(classe ~ .,data = train,method ="rpart")
+fancyRpartPlot(dtModel$finalModel)
+# make predictions 
+predictions <- predict(dtModel, newdata = test)
+# summerize results
+confusionMatrix(predictions, test$classe)
+```
+
+The accuracy is 57.11%, and the out-of-sample error is 42.89%. We will try random 
+forest model to see if we can get better smaller out-of-sample error
+
+## 3. Build Random Forest Model to predict "classe"
+```{r}
+# train a random forest model
+rfModel <- randomForest(classe ~ ., data = train)
+# make predictions 
+predictions <- predict(rfModel, newdata = test)
+# summerize results
+confusionMatrix(predictions, test$classe)
+```
+
+The accuracy is 99.69%, and the out-of-sample error is 0.31%. 
+
+Thus, next we will use Cross Validation method to reestimate decision tree model 
+and random forest model.
+
+# Cross Validation Method to estimate model accuracy
+## 1. k-fold Cross Validation for decision tree model
+The k-fold cross validation method involves splitting the dataset into k-subsets. 
+For each subset is held out while the model is trained on all other subsets. This
+process is completed until accuracy is determine for each instance in the dataset,
+and an overall accuracy estimate is provided.  
+
+It is a robust method for estimating accuracy, and the size of k and tune the 
+amount of bias in the estimate, with popular values set to 3, 5, 7 and 10.
+
+Here we will choose 5.
+```{r}
+# define training control
+train_control <- trainControl(method="cv", number=5)
+# train the decision tree model using trainingCleaned data
+dtmodelCV <- train(classe~., data=trainingCleaned, trControl=train_control, method="rpart")
+# make predictions 
+predictions <- predict(dtModel, newdata = trainingCleaned[ ,-54])
+# summerize results
+confusionMatrix(predictions, trainingCleaned$classe)
+```
+The accuracy is 57.08%, and the out-of-sample error is 42.92%. 
+
+## 2. k-fold Cross Validation for random forest model
+```{r}
+# define training control
+train_control <- trainControl(method="cv", number=5)
+# train the decision tree model using trainingCleaned data
+rfmodelCV <- randomForest(classe~., data=trainingCleaned, trControl=train_control)
+# make predictions 
+predictions <- predict(rfmodelCV, newdata = trainingCleaned[ ,-54])
+# summerize results
+confusionMatrix(predictions, trainingCleaned$classe)
+```
+The accuracy is almost 100%, and the out-of-sample error is nearly 0%. The problem
+is overfiiting.
+
+# Select the best model to make testingCleaned dataset prediction
+Because of overfitting problem, we will choose Decision Tree Model (nbmodelCV) 
+instead of Decision Tree Model using Cross Validation (rfmodelCV) as our best model
+
+```{r eval = FALSE}
+# predict "classe" of testingCleaned data using nbmodelCV
+predictionsDT <- predict(rfModel, newdata = testingCleaned)
+
+# Apply the function given, to generate the file to submit
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+  
+# create the file containing the results by the best model
+pml_write_files(predictionsDT)
+```
